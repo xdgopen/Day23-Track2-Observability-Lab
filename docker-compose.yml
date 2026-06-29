@@ -116,6 +116,15 @@ services:
       - jaeger
     networks: [obs]
 
+  cross-day-stub:
+    image: python:3.12-slim
+    container_name: day23-cross-day-stub
+    working_dir: /app
+    command: ["python", "cross_day_stub_exporter.py"]
+    volumes:
+      - ./05-integration/cross_day_stub_exporter.py:/app/cross_day_stub_exporter.py:ro
+    networks: [obs]
+
 volumes:
   prom-data:
   grafana-data:

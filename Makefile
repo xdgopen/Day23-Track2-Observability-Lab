@@ -48,7 +48,7 @@ smoke: ## health-check all 7 services
 
 load: ## run baseline locust load (concurrency=10, 60s)
 	cd 02-prometheus-grafana/load-test && \
-	  locust -f locustfile.py --headless -u 10 -r 2 -t 60s --host http://localhost:8000
+	  python3 -m locust -f locustfile.py --headless -u 10 -r 2 -t 60s --host http://localhost:8000
 
 alert: ## trigger an alert by killing the app, wait, then restore
 	bash scripts/trigger-alert.sh

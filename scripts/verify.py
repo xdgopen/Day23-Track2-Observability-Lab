@@ -7,8 +7,13 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
-import requests
+try:
+    import requests
+except ImportError:  # keep the rubric gate runnable on a fresh Python install
+    requests = None
 
 LAB = Path(__file__).resolve().parent.parent
 SUBMISSION = LAB / "submission"
@@ -24,10 +29,52 @@ def check(label: str, ok: bool, detail: str = "") -> bool:
 
 
 def http_ok(url: str, timeout: float = 3.0) -> bool:
+    if requests is None:
+        try:
+            with urlopen(url, timeout=timeout) as response:
+                return response.status == 200
+        except URLError:
+            return False
     try:
         return requests.get(url, timeout=timeout).status_code == 200
     except requests.exceptions.RequestException:
         return False
+
+
+def http_text(url: str, timeout: float = 3.0) -> str:
+    if requests is None:
+        try:
+            with urlopen(url, timeout=timeout) as response:
+                return response.read().decode("utf-8", errors="replace")
+        except URLError:
+            return ""
+    try:
+        response = requests.get(url, timeout=timeout)
+        return response.text if response.status_code == 200 else ""
+    except requests.exceptions.RequestException:
+        return ""
+
+
+def http_json(url: str, *, auth: tuple[str, str] | None = None, timeout: float = 3.0):
+    if requests is None:
+        try:
+            request = Request(url)
+            if auth:
+                import base64
+
+                token = base64.b64encode(f"{auth[0]}:{auth[1]}".encode()).decode()
+                request.add_header("Authorization", f"Basic {token}")
+            with urlopen(request, timeout=timeout) as response:
+                if response.status != 200:
+                    return None
+                return json.loads(response.read().decode("utf-8"))
+        except (URLError, json.JSONDecodeError):
+            return None
+    try:
+        response = requests.get(url, auth=auth, timeout=timeout)
+        return response.json() if response.status_code == 200 else None
+    except Exception:
+        return None
 
 
 def main() -> int:
@@ -49,7 +96,7 @@ def main() -> int:
     results.append(check(
         "01: /metrics exposes inference_requests_total",
         any("inference_requests_total" in line
-            for line in requests.get("http://localhost:8000/metrics", timeout=3).text.splitlines())
+            for line in http_text("http://localhost:8000/metrics").splitlines())
         if http_ok("http://localhost:8000/metrics") else False,
     ))
 
@@ -59,16 +106,11 @@ def main() -> int:
     results.append(check("02: Alertmanager reachable", http_ok("http://localhost:9093/-/healthy")))
 
     # Verify dashboards loaded (Grafana API)
-    try:
-        r = requests.get(
-            "http://localhost:3000/api/search?query=Day%2023",
-            auth=("admin", "admin"),
-            timeout=3,
-        )
-        dashboards = r.json() if r.status_code == 200 else []
-        dash_count = len(dashboards)
-    except Exception:
-        dash_count = 0
+    dashboards = http_json(
+        "http://localhost:3000/api/search?query=Day%2023",
+        auth=("admin", "admin"),
+    ) or []
+    dash_count = len(dashboards)
     results.append(check(
         "02: 3 Day-23 dashboards loaded",
         dash_count >= 3,

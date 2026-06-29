@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Day 23 Drift Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 32px; }
+    table { border-collapse: collapse; min-width: 760px; }
+    th, td { border: 1px solid #d0d7de; padding: 8px 12px; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #f6f8fa; }
+  </style>
+</head>
+<body>
+  <h1>Day 23 Drift Report</h1>
+  <p>Reference vs current synthetic AI-service traffic. PSI &gt; 0.2 is marked as drift.</p>
+  <table>
+    <thead>
+      <tr><th>Feature</th><th>PSI</th><th>KL</th><th>KS stat</th><th>KS p-value</th><th>Drift</th></tr>
+    </thead>
+    <tbody><tr><td>prompt_length</td><td>3.2419</td><td>2.2987</td><td>0.704</td><td>0.0</td><td>yes</td></tr>
+<tr><td>embedding_norm</td><td>0.0119</td><td>0.054</td><td>0.046</td><td>0.241025</td><td>no</td></tr>
+<tr><td>response_length</td><td>0.0104</td><td>0.0321</td><td>0.036</td><td>0.547248</td><td>no</td></tr>
+<tr><td>response_quality</td><td>8.5887</td><td>18.5953</td><td>0.938</td><td>0.0</td><td>yes</td></tr></tbody>
+  </table>
+</body>
+</html>

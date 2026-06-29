@@ -76,35 +76,50 @@ def run_task(task, tracer):
     @contextmanager
     def span(name, attrs):
         if not tracer:
-            yield
+            yield None
             return
+        from opentelemetry.trace import Status, StatusCode
         with tracer.start_as_current_span(name) as sp:
             for k, v in attrs.items():
                 sp.set_attribute(k, v)
-            yield
+            try:
+                yield sp
+            except Exception as exc:
+                sp.record_exception(exc)
+                sp.set_status(Status(StatusCode.ERROR, str(exc)))
+                raise
 
     steps = tool_calls = tool_errors = tokens = 0
     actions, success = [], False
     with span("invoke_agent", {"gen_ai.operation.name": "invoke_agent",
-                               "gen_ai.agent.name": "shopbot", "agent.goal": task["goal"]}):
+                               "gen_ai.agent.name": "shopbot", "agent.goal": task["goal"]}) as agent_span:
         for (tool, arg) in task["plan"]:
             if steps >= MAX_STEPS:
                 break
             steps += 1
             actions.append((tool, arg))
             with span("execute_tool", {"gen_ai.operation.name": "execute_tool",
-                                       "gen_ai.tool.name": tool}):
+                                       "gen_ai.tool.name": tool}) as tool_span:
                 tool_calls += 1
                 try:
                     out = TOOLS[tool](arg)
                     tokens += out.get("tokens", 20)
                     if tool == "place_order":
                         success = True
-                except Exception:
+                except Exception as exc:
                     tool_errors += 1
                     tokens += 15  # the failed attempt still cost tokens
+                    if tool_span:
+                        from opentelemetry.trace import Status, StatusCode
+                        tool_span.record_exception(exc)
+                        tool_span.set_status(Status(StatusCode.ERROR, str(exc)))
             if detect_loop(actions):
                 break  # agent caught in a loop -> abort (no-progress)
+        looped_now = detect_loop(actions)
+        if agent_span and (looped_now or not success):
+            from opentelemetry.trace import Status, StatusCode
+            agent_span.set_attribute("agent.loop_detected", looped_now)
+            agent_span.set_status(Status(StatusCode.ERROR, "agent task failed"))
     looped = detect_loop(actions)
     return {
         "goal": task["goal"], "steps": steps, "tool_calls": tool_calls,
